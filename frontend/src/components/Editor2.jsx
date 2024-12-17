@@ -1,48 +1,87 @@
-import React, { useEffect, useRef } from 'react';
-import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket';
-import Quill from 'quill';
-import { QuillBinding } from '../lib/y-quill';
+import React, { useEffect, useRef, useState } from "react";
+import * as Y from "yjs";
+import { WebsocketProvider } from "y-websocket";
+import { QuillBinding } from "y-quill";
+import ReactQuill from "react-quill";
+import mammoth from "mammoth"; // Convert .docx to HTML
+import "react-quill/dist/quill.snow.css";
+import "../App.css";
 
-import 'quill/dist/quill.bubble.css';  // Use a different theme for Editor2
+const Editor = () => {
+  const reactQuillRef = useRef(null);
+  const [onlineUsers, setOnlineUsers] = useState([]);
+  const username = `User-${Math.floor(Math.random() * 1000)}`;
+  const userColor = "#33FF57";
+  const [ydoc, setYdoc] = useState(null);
 
-const Editor2 = () => {
-  const editorRef = useRef(null);
-
+  // Initialize Yjs and WebSocketProvider
   useEffect(() => {
-    const ydoc = new Y.Doc();  // Create a new Yjs document for Editor2
+    const ydocInstance = new Y.Doc();
+    setYdoc(ydocInstance);
 
-    const provider = new WebsocketProvider('ws://localhost:1234', 'shared-doc2', ydoc);  // Unique document name
-    const ytext = ydoc.getText('quill');  // Create a Y.Text type for shared text
-    const editor = new Quill(editorRef.current, { 
-      theme: 'bubble',  // Different theme for Editor2
-      placeholder: 'Write something here...',
-      modules: {
-        toolbar: [
-          [{ 'header': '1'}, {'header': '2'}, { 'font': [] }],
-          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-          ['bold', 'italic', 'underline'],
-          ['link'],
-          ['blockquote'],
-          [{ 'align': [] }],
-          ['clean']
-        ],
-      }
-    });
+    const provider = new WebsocketProvider("ws://localhost:1234", "shared-room", ydocInstance);
+    const awareness = provider.awareness;
+    awareness.setLocalStateField("user", { name: username, color: userColor });
 
-    new QuillBinding(ytext, editor);  // Bind Quill editor with Yjs document
+    const ytext = ydocInstance.getText("quill");
 
-    provider.on('status', (event) => {
-      console.log(`WebSocket status: ${event.status}`);
-    });
+    if (reactQuillRef.current) {
+      const quill = reactQuillRef.current.getEditor();
+      new QuillBinding(ytext, quill); // Bind Quill to Yjs
+    }
 
     return () => {
       provider.destroy();
-      ydoc.destroy();
+      ydocInstance.destroy();
     };
   }, []);
 
-  return <div ref={editorRef} style={{ height: '400px', border: '1px solid #ccc' }} />;
+  // Handle file upload and convert .docx content to HTML
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file && file.name.endsWith(".docx")) {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const arrayBuffer = event.target.result;
+        try {
+          // Convert the file to HTML using Mammoth
+          const { value: html, messages } = await mammoth.convertToHtml({ arrayBuffer });
+
+          console.log("Converted HTML:", html); // Debug the HTML content
+          console.log("Messages:", messages); // Log warnings or messages from mammoth
+
+          if (reactQuillRef.current) {
+            const quill = reactQuillRef.current.getEditor();
+            // Clear editor and insert the new HTML content
+            quill.setContents([]); // Clear current content
+            quill.clipboard.dangerouslyPasteHTML(0, html); // Insert HTML
+          }
+        } catch (err) {
+          console.error("Error converting .docx file:", err);
+          alert("Failed to load the .docx file. Please try again.");
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      alert("Please upload a valid .docx file.");
+    }
+  };
+
+  return (
+    <div className="editor-container">
+      {/* File Upload Section */}
+      <div className="file-upload" style={{ marginBottom: "10px" }}>
+        <input type="file" accept=".docx" onChange={handleFileUpload} />
+      </div>
+
+      {/* Quill Text Editor */}
+      <ReactQuill
+        ref={reactQuillRef}
+        theme="snow"
+        placeholder="Start collaborating or upload a .docx file..."
+      />
+    </div>
+  );
 };
 
-export default Editor2;
+export default Editor;

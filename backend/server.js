@@ -1,4 +1,4 @@
-const { WebSocketServer } = require("ws");
+const { WebSocketServer, WebSocket } = require("ws");
 const Y = require("yjs");
 
 // A map to store Yjs documents by room name

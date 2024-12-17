@@ -9,6 +9,8 @@ const App = () => {
       <div>
         <h2>Editor 1</h2>
         <Editor1 />
+        {/* <Editor2 /> */}
+
       </div>
       {/* <div>
         <h2>Editor 2</h2>
